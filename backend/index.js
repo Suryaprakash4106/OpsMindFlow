@@ -4,6 +4,7 @@ const session = require('express-session');
 const passport = require('passport');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const cookieParser = require('cookie-parser'); // ADD THIS
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -24,6 +25,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser()); // ADD THIS
 
 // 🔥 ULTRA SIMPLE CORS
 app.use((req, res, next) => {
@@ -38,16 +40,18 @@ app.use((req, res, next) => {
   next();
 });
 
-// ✅ FIXED: Session configuration with saveUninitialized: true
+// ✅ FIXED: Session configuration with cookie domain
 app.use(session({
   secret: process.env.SESSION_SECRET || 'opsmind_secret',
   resave: false,
-  saveUninitialized: true,  // CHANGED FROM false TO true
+  saveUninitialized: true,
+  name: 'connect.sid', // Explicit cookie name
   cookie: {
     secure: false,
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000,
-    sameSite: 'lax'
+    sameSite: 'lax',
+    domain: '.onrender.com' // Add this for cross-subdomain
   }
 }));
 
