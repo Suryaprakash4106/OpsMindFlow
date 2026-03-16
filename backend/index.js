@@ -38,11 +38,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Session configuration
+// ✅ FIXED: Session configuration with saveUninitialized: true
 app.use(session({
   secret: process.env.SESSION_SECRET || 'opsmind_secret',
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true,  // CHANGED FROM false TO true
   cookie: {
     secure: false,
     httpOnly: true,
@@ -51,7 +51,7 @@ app.use(session({
   }
 }));
 
-// 🆕 SESSION DEBUGGING MIDDLEWARE - Add this before passport
+// 🆕 SESSION DEBUGGING MIDDLEWARE
 app.use((req, res, next) => {
   console.log('\n' + '='.repeat(50));
   console.log('🍪 SESSION DEBUG at:', new Date().toISOString());
