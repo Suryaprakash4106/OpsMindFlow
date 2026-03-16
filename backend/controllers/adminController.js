@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Document = require('../models/Document');
 const bcrypt = require('bcrypt');
 const { sanitizeUser } = require('../utils/helpers');
+const mongoose = require('mongoose'); // Add this at top
 
 // Get all employees
 exports.getAllEmployees = async (req, res) => {
@@ -58,19 +59,53 @@ exports.removeEmployee = async (req, res) => {
   }
 };
 
-// ✅ FIXED: Get dashboard statistics with debug logs
+// ✅ UPDATED: Get dashboard statistics with enhanced debugging
 exports.getStats = async (req, res) => {
   try {
-    // Log database name
-    console.log('📁 Connected to database:', mongoose.connection.name);
+    console.log('='.repeat(50));
+    console.log('📊 getStats called at:', new Date().toISOString());
+    console.log('👤 User ID from session:', req.session?.userId || 'Not logged in');
     
-    // Count documents
+    // Log database connection info
+    console.log('📁 Database name:', mongoose.connection.name);
+    console.log('📁 Database host:', mongoose.connection.host);
+    
+    // List all collections in database
+    const collections = await mongoose.connection.db.listCollections().toArray();
+    console.log('📁 Collections in DB:', collections.map(c => c.name));
+    
+    // Try direct collection access (bypass models)
+    const db = mongoose.connection.db;
+    
+    // Check documents collection
+    const docsCollection = collections.find(c => c.name === 'documents');
+    if (docsCollection) {
+      const docCount = await db.collection('documents').countDocuments();
+      console.log('📊 Direct DB count - documents:', docCount);
+    } else {
+      console.log('❌ documents collection not found!');
+    }
+    
+    // Check users collection
+    const usersCollection = collections.find(c => c.name === 'users');
+    if (usersCollection) {
+      const employeesCount = await db.collection('users').countDocuments({ role: 'employee' });
+      console.log('👥 Direct DB count - employees:', employeesCount);
+      const totalUsers = await db.collection('users').countDocuments();
+      console.log('👥 Direct DB count - total users:', totalUsers);
+    } else {
+      console.log('❌ users collection not found!');
+    }
+    
+    // Model-based counts
+    console.log('📊 Model counts starting...');
     const totalDocs = await Document.countDocuments();
-    console.log('📊 Documents found:', totalDocs);
+    console.log('📊 Model Documents found:', totalDocs);
     
-    // Count employees
     const totalEmployees = await User.countDocuments({ role: 'employee' });
-    console.log('👥 Employees found:', totalEmployees);
+    console.log('👥 Model Employees found:', totalEmployees);
+    
+    console.log('='.repeat(50));
     
     // Send response
     res.json({ totalDocs, totalEmployees });
@@ -83,9 +118,12 @@ exports.getStats = async (req, res) => {
 // Get all users with details
 exports.getAllUsers = async (req, res) => {
   try {
+    console.log('👥 getAllUsers called');
     const users = await User.find()
       .select('-password -otp -otpExpires -tempData')
       .sort({ createdAt: -1 });
+    
+    console.log(`👥 Found ${users.length} users`);
     
     const usersWithStatus = users.map(user => {
       const userObj = user.toObject();
@@ -141,6 +179,8 @@ exports.unblockUser = async (req, res) => {
 // Get login statistics
 exports.getLoginStats = async (req, res) => {
   try {
+    console.log('📈 getLoginStats called');
+    
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -176,6 +216,8 @@ exports.getLoginStats = async (req, res) => {
       'loginHistory.timestamp': { $gte: today, $lt: tomorrow }
     });
 
+    console.log('📈 Stats:', { totalUsers, activeNow, blockedUsers, todayLogins });
+    
     res.json({
       stats: formatted,
       totals: { totalUsers, activeNow, blockedUsers, todayLogins }
