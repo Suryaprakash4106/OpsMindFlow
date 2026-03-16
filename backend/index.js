@@ -25,7 +25,7 @@ mongoose.connect(process.env.MONGO_URI)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 🔥 ULTRA SIMPLE CORS - This WILL work
+// 🔥 ULTRA SIMPLE CORS
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', FRONTEND_URL);
   res.header('Access-Control-Allow-Credentials', 'true');
@@ -38,7 +38,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Session (simplified)
+// Session configuration
 app.use(session({
   secret: process.env.SESSION_SECRET || 'opsmind_secret',
   resave: false,
@@ -50,6 +50,19 @@ app.use(session({
     sameSite: 'lax'
   }
 }));
+
+// 🆕 SESSION DEBUGGING MIDDLEWARE - Add this before passport
+app.use((req, res, next) => {
+  console.log('\n' + '='.repeat(50));
+  console.log('🍪 SESSION DEBUG at:', new Date().toISOString());
+  console.log('🍪 Request path:', req.path);
+  console.log('🍪 Session ID:', req.sessionID);
+  console.log('🍪 Session exists:', !!req.session);
+  console.log('🍪 User ID in session:', req.session?.userId);
+  console.log('🍪 Cookie header:', req.headers.cookie);
+  console.log('='.repeat(50) + '\n');
+  next();
+});
 
 app.use(passport.initialize());
 app.use(passport.session());
