@@ -24,7 +24,7 @@ exports.register = async (req, res) => {
       role: role || 'employee',
       otp,
       otpExpires,
-      isActive: false, // new users start as inactive
+      isActive: false,
     });
 
     await user.save();
@@ -116,7 +116,7 @@ exports.completeRegistration = async (req, res) => {
     user.role = role || 'employee';
     user.isVerified = true;
     user.tempData = undefined;
-    user.isActive = false; // user starts as inactive
+    user.isActive = false;
     await user.save();
 
     res.json({ message: 'Registration successful' });
@@ -126,7 +126,7 @@ exports.completeRegistration = async (req, res) => {
   }
 };
 
-// Login user
+// ✅ FIXED: Login user with explicit session save
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -154,25 +154,38 @@ exports.login = async (req, res) => {
       return res.status(401).json({ error: 'Please verify your email first' });
     }
 
-    // Update online status and login history
-    user.isActive = true;
-    user.lastSeen = new Date();
-    user.lastLogin = new Date();
-    user.loginHistory.push({
-      timestamp: new Date(),
-      ip: req.ip || req.connection.remoteAddress,
-      userAgent: req.headers['user-agent'],
-    });
-    await user.save();
-
+    // ✅ FIX: Set session data and save explicitly
     req.session.userId = user._id;
     req.session.role = user.role;
-
-    res.json({
-      message: 'Login successful',
-      user: sanitizeUser(user),
-      role: user.role,
+    
+    // Save session explicitly
+    req.session.save(async (err) => {
+      if (err) {
+        console.error('❌ Session save error:', err);
+        return res.status(500).json({ error: 'Session error' });
+      }
+      
+      console.log('✅ Session saved for user:', user._id);
+      console.log('🍪 Session ID:', req.sessionID);
+      
+      // Update user login info
+      user.isActive = true;
+      user.lastSeen = new Date();
+      user.lastLogin = new Date();
+      user.loginHistory.push({
+        timestamp: new Date(),
+        ip: req.ip || req.connection.remoteAddress,
+        userAgent: req.headers['user-agent'],
+      });
+      await user.save().catch(err => console.error('Login history error:', err));
+      
+      res.json({
+        message: 'Login successful',
+        user: sanitizeUser(user),
+        role: user.role,
+      });
     });
+    
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
