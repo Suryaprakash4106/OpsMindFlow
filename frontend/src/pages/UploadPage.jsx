@@ -13,6 +13,8 @@ export default function UploadPage() {
   const [message, setMessage] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [pdfToDelete, setPdfToDelete] = useState(null);
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
@@ -84,13 +86,25 @@ export default function UploadPage() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this PDF?')) return;
+  // Open delete confirmation modal
+  const handleDeleteClick = (pdf) => {
+    setPdfToDelete(pdf);
+    setShowDeleteConfirm(true);
+  };
+
+  // Confirm delete
+  const confirmDelete = async () => {
+    if (!pdfToDelete) return;
+    
+    setShowDeleteConfirm(false);
     try {
-      await api.delete(`/pdf/${id}`);
-      fetchPdfs();
+      await api.delete(`/pdf/${pdfToDelete._id}`);
+      setPdfList(prev => prev.filter(p => p._id !== pdfToDelete._id));
+      setMessage('PDF deleted successfully');
     } catch (err) {
       alert('Failed to delete PDF');
+    } finally {
+      setPdfToDelete(null);
     }
   };
 
@@ -140,7 +154,7 @@ export default function UploadPage() {
                       </p>
                     </div>
                     <button
-                      onClick={() => handleDelete(pdf._id)}
+                      onClick={() => handleDeleteClick(pdf)}
                       className="opacity-0 group-hover:opacity-100 text-red-600 hover:text-red-800 transition"
                       title="Delete"
                     >
@@ -286,6 +300,40 @@ export default function UploadPage() {
           </main>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && pdfToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Confirm Delete
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-2">
+              Are you sure you want to delete this PDF?
+            </p>
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-6">
+              "{pdfToDelete.fileName}"
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setPdfToDelete(null);
+                }}
+                className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
