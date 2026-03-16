@@ -4,7 +4,7 @@ const session = require('express-session');
 const passport = require('passport');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const cookieParser = require('cookie-parser'); // ADD THIS
+const cookieParser = require('cookie-parser');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -25,14 +25,14 @@ mongoose.connect(process.env.MONGO_URI)
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser()); // ADD THIS
+app.use(cookieParser());
 
-// 🔥 ULTRA SIMPLE CORS
+// 🔥 ULTRA SIMPLE CORS - UPDATED with custom headers
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', FRONTEND_URL);
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Session-ID, X-User-ID');
   
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
@@ -40,18 +40,18 @@ app.use((req, res, next) => {
   next();
 });
 
-// ✅ FIXED: Session configuration with cookie domain
+// ✅ Session configuration
 app.use(session({
   secret: process.env.SESSION_SECRET || 'opsmind_secret',
   resave: false,
   saveUninitialized: true,
-  name: 'connect.sid', // Explicit cookie name
+  name: 'connect.sid',
   cookie: {
     secure: false,
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000,
     sameSite: 'lax',
-    domain: '.onrender.com' // Add this for cross-subdomain
+    domain: '.onrender.com'
   }
 }));
 
