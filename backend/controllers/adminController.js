@@ -16,7 +16,7 @@ exports.getAllEmployees = async (req, res) => {
   }
 };
 
-// Add a new employee (admin only)
+// Add a new employee
 exports.addEmployee = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -33,7 +33,7 @@ exports.addEmployee = async (req, res) => {
       password: hashedPassword,
       role: 'employee',
       isVerified: true,
-      isActive: false, // new employees start as inactive
+      isActive: false,
     });
     await user.save();
 
@@ -58,14 +58,24 @@ exports.removeEmployee = async (req, res) => {
   }
 };
 
-// Get dashboard statistics
+// ✅ FIXED: Get dashboard statistics with debug logs
 exports.getStats = async (req, res) => {
   try {
+    // Log database name
+    console.log('📁 Connected to database:', mongoose.connection.name);
+    
+    // Count documents
     const totalDocs = await Document.countDocuments();
+    console.log('📊 Documents found:', totalDocs);
+    
+    // Count employees
     const totalEmployees = await User.countDocuments({ role: 'employee' });
+    console.log('👥 Employees found:', totalEmployees);
+    
+    // Send response
     res.json({ totalDocs, totalEmployees });
   } catch (error) {
-    console.error('Get stats error:', error);
+    console.error('❌ Get stats error:', error);
     res.status(500).json({ error: 'Failed to fetch stats' });
   }
 };
@@ -77,23 +87,15 @@ exports.getAllUsers = async (req, res) => {
       .select('-password -otp -otpExpires -tempData')
       .sort({ createdAt: -1 });
     
-    // Add computed current status for each user
     const usersWithStatus = users.map(user => {
       const userObj = user.toObject();
-      
-      // Determine display status
       let displayStatus = 'active';
       if (userObj.status === 'blocked') {
         displayStatus = 'blocked';
       } else if (!userObj.isActive) {
         displayStatus = 'inactive';
       }
-      
-      return {
-        ...userObj,
-        displayStatus,
-        currentStatus: displayStatus // for frontend use
-      };
+      return { ...userObj, displayStatus, currentStatus: displayStatus };
     });
     
     res.json(usersWithStatus);
@@ -110,7 +112,6 @@ exports.blockUser = async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     
     user.status = 'blocked';
-    // Optionally force logout by setting isActive to false
     user.isActive = false;
     await user.save();
     
@@ -128,7 +129,6 @@ exports.unblockUser = async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     
     user.status = 'active';
-    // Don't automatically set isActive - user needs to login
     await user.save();
     
     res.json({ message: 'User unblocked successfully' });
@@ -138,7 +138,7 @@ exports.unblockUser = async (req, res) => {
   }
 };
 
-// Get login statistics for last 7 days
+// Get login statistics
 exports.getLoginStats = async (req, res) => {
   try {
     const sevenDaysAgo = new Date();
@@ -158,22 +158,15 @@ exports.getLoginStats = async (req, res) => {
       { $sort: { '_id.date': 1 } }
     ]);
 
-    // Format for frontend
     const formatted = stats.map(s => ({
       date: s._id.date,
       logins: s.count
     }));
 
-    // Get real-time active users (isActive = true)
-    const activeNow = await User.countDocuments({ 
-      isActive: true,
-      status: 'active' 
-    });
-    
+    const activeNow = await User.countDocuments({ isActive: true, status: 'active' });
     const totalUsers = await User.countDocuments();
     const blockedUsers = await User.countDocuments({ status: 'blocked' });
     
-    // Today's logins (using loginHistory)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -185,12 +178,7 @@ exports.getLoginStats = async (req, res) => {
 
     res.json({
       stats: formatted,
-      totals: {
-        totalUsers,
-        activeNow,
-        blockedUsers,
-        todayLogins
-      }
+      totals: { totalUsers, activeNow, blockedUsers, todayLogins }
     });
   } catch (error) {
     console.error('Login stats error:', error);
@@ -198,18 +186,15 @@ exports.getLoginStats = async (req, res) => {
   }
 };
 
-// Get single user details by ID (for admin modal)
+// Get single user details
 exports.getUserDetails = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
       .select('-password -otp -otpExpires -tempData')
       .lean();
     
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    if (!user) return res.status(404).json({ error: 'User not found' });
     
-    // Determine current display status
     let displayStatus = 'active';
     if (user.status === 'blocked') {
       displayStatus = 'blocked';
@@ -217,15 +202,7 @@ exports.getUserDetails = async (req, res) => {
       displayStatus = 'inactive';
     }
     
-    // Ensure loginHistory is an array
-    const loginHistory = user.loginHistory || [];
-    
-    res.json({ 
-      ...user, 
-      loginHistory,
-      displayStatus,
-      currentStatus: displayStatus
-    });
+    res.json({ ...user, loginHistory: user.loginHistory || [], displayStatus });
   } catch (error) {
     console.error('Get user details error:', error);
     res.status(500).json({ error: 'Failed to fetch user details' });
