@@ -7,20 +7,39 @@ console.log('🔧 API Config:', { API_URL, baseURL });
 
 const api = axios.create({
   baseURL: baseURL,
-  withCredentials: true,  // MUST be true
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   }
 });
 
-// FORCE cookies to be sent with EVERY request
+// Force withCredentials for ALL requests
 api.defaults.withCredentials = true;
 
-// Add request interceptor to verify cookies are being sent
+// Add request interceptor to log cookies
 api.interceptors.request.use(request => {
-  console.log('🚀 Sending request to:', request.url);
-  console.log('🍪 withCredentials:', request.withCredentials);
+  console.log('🚀 Request:', {
+    url: request.url,
+    method: request.method,
+    withCredentials: request.withCredentials,
+    cookies: document.cookie // Check if cookies exist
+  });
   return request;
 });
+
+// Add response interceptor
+api.interceptors.response.use(
+  response => {
+    console.log('✅ Response:', response.status);
+    return response;
+  },
+  error => {
+    console.log('❌ Error:', {
+      status: error.response?.status,
+      message: error.message
+    });
+    return Promise.reject(error);
+  }
+);
 
 export default api;
