@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api'; // ✅ This is already imported
+import api from '../services/api';
 import { FiArrowLeft } from 'react-icons/fi';
 
 // Icons
@@ -12,6 +12,9 @@ const SearchIcon = () => <span>🔍</span>;
 const NewChatIcon = () => <span>➕</span>;
 const SunIcon = () => <span>☀️</span>;
 const MoonIcon = () => <span>🌙</span>;
+
+// ✅ Add this constant for backend URL
+const API_URL = 'https://opsmindflow.onrender.com';
 
 export default function ChatPage() {
   const { user, logout } = useAuth();
@@ -150,7 +153,7 @@ export default function ChatPage() {
     }
   };
 
-  // ✅ FIXED: Use api instance instead of fetch
+  // ✅ FIXED: Use fetch for streaming (axios doesn't handle streaming well)
   const sendMessage = async () => {
     if (!input.trim()) return;
 
@@ -172,15 +175,21 @@ export default function ChatPage() {
     setMessages(prev => [...prev, { id: aiMsgId, text: '', sender: 'ai', timestamp: '', loading: true }]);
 
     try {
-      // ✅ USE API INSTANCE, NOT FETCH
-      const response = await api.post('/chat/ask', {
-        question: input,
-        documentId: selectedPdf?._id
-      }, {
-        responseType: 'stream'
+      // ✅ Use fetch directly for stream handling
+      const response = await fetch(`${API_URL}/api/chat/ask`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-ID': localStorage.getItem('sessionId'),
+          'X-User-ID': localStorage.getItem('userId')
+        },
+        body: JSON.stringify({
+          question: input,
+          documentId: selectedPdf?._id
+        })
       });
 
-      const reader = response.data.getReader();
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let aiText = '';
 
