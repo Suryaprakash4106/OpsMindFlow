@@ -73,27 +73,45 @@ exports.listPDFs = async (req, res) => {
   }
 };
 
-// Delete PDF (admin only)
+// ✅ FIXED: Delete PDF with better error handling
 exports.deletePDF = async (req, res) => {
   try {
+    console.log('🗑️ Delete request for ID:', req.params.id);
+    
     const doc = await Document.findById(req.params.id);
     if (!doc) {
+      console.log('❌ Document not found');
       return res.status(404).json({ error: 'Document not found' });
     }
-
-    // Delete file from disk
-    fs.unlinkSync(doc.filePath);
-
+    
+    console.log('📄 Found document:', doc.fileName);
+    console.log('📁 File path:', doc.filePath);
+    
+    // Delete file from disk if it exists
+    try {
+      if (fs.existsSync(doc.filePath)) {
+        fs.unlinkSync(doc.filePath);
+        console.log('✅ File deleted from disk');
+      } else {
+        console.log('⚠️ File not found on disk:', doc.filePath);
+      }
+    } catch (fileError) {
+      console.error('❌ File deletion error:', fileError);
+      // Continue with database deletion even if file delete fails
+    }
+    
     // Delete chunks
-    await Chunk.deleteMany({ documentId: doc._id });
-
+    const chunkResult = await Chunk.deleteMany({ documentId: doc._id });
+    console.log(`✅ Deleted ${chunkResult.deletedCount} chunks`);
+    
     // Delete document record
     await doc.deleteOne();
-
+    console.log('✅ Document record deleted');
+    
     res.json({ message: 'PDF deleted successfully' });
   } catch (error) {
-    console.error('Delete PDF error:', error);
-    res.status(500).json({ error: 'Failed to delete PDF' });
+    console.error('❌ Delete PDF error:', error);
+    res.status(500).json({ error: 'Failed to delete PDF: ' + error.message });
   }
 };
 
