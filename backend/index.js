@@ -27,9 +27,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// 🔥 SIMPLE CORS MIDDLEWARE
+// 🔥 SIMPLE CORS MIDDLEWARE (THIS IS ALL YOU NEED)
 app.use((req, res, next) => {
-  // Set CORS headers for all requests
   res.header('Access-Control-Allow-Origin', FRONTEND_URL);
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -40,17 +39,6 @@ app.use((req, res, next) => {
     return res.sendStatus(200);
   }
   next();
-});
-
-// ❌ Remove the app.options('*', ...) line entirely
-
-// ✅ OPTIONS handler for all routes (FIXES 405 ERROR)
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', FRONTEND_URL);
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Session-ID, X-User-ID');
-  res.sendStatus(200);
 });
 
 // ✅ Session configuration
