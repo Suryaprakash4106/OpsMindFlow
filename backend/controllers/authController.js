@@ -43,7 +43,7 @@ exports.register = async (req, res) => {
   }
 };
 
-// Step 1: Send OTP (new multi‑step flow)
+// Step 1: Send OTP (new multi‑step flow) - WITH CONSOLE LOGGING
 exports.sendOtp = async (req, res) => {
   try {
     const { firstName, lastName, email } = req.body;
@@ -66,12 +66,26 @@ exports.sendOtp = async (req, res) => {
     user.tempData = { firstName, lastName, otp, otpExpires };
     await user.save();
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'Your OTP - OpsMindFlow',
-      html: `<p>Your OTP is: <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
-    });
+    // ✅ LOG OTP TO CONSOLE
+    console.log('\n' + '='.repeat(50));
+    console.log('📧 OTP FOR REGISTRATION');
+    console.log(`📧 Email: ${email}`);
+    console.log(`🔑 OTP: ${otp}`);
+    console.log('='.repeat(50) + '\n');
+
+    // Try to send email (but don't fail if it doesn't work)
+    try {
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: 'Your OTP - OpsMindFlow',
+        html: `<p>Your OTP is: <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
+      });
+      console.log('✅ Email sent successfully');
+    } catch (emailError) {
+      console.error('❌ Email send error:', emailError.message);
+      console.log('⚠️ But OTP is available in logs above!');
+    }
 
     res.json({ message: 'OTP sent successfully' });
   } catch (error) {
@@ -126,7 +140,7 @@ exports.completeRegistration = async (req, res) => {
   }
 };
 
-// ✅ FIXED: Login user with explicit session save
+// Login user with explicit session save
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -136,7 +150,6 @@ exports.login = async (req, res) => {
       return res.status(400).json({ error: 'Invalid email or password' });
     }
 
-    // Check if user is blocked
     if (user.status === 'blocked') {
       return res.status(403).json({ error: 'Your account has been blocked. Please contact admin.' });
     }
@@ -154,11 +167,9 @@ exports.login = async (req, res) => {
       return res.status(401).json({ error: 'Please verify your email first' });
     }
 
-    // ✅ FIX: Set session data and save explicitly
     req.session.userId = user._id;
     req.session.role = user.role;
     
-    // Save session explicitly
     req.session.save(async (err) => {
       if (err) {
         console.error('❌ Session save error:', err);
@@ -168,7 +179,6 @@ exports.login = async (req, res) => {
       console.log('✅ Session saved for user:', user._id);
       console.log('🍪 Session ID:', req.sessionID);
       
-      // Update user login info
       user.isActive = true;
       user.lastSeen = new Date();
       user.lastLogin = new Date();
@@ -250,14 +260,12 @@ exports.resendOtp = async (req, res) => {
 // Logout
 exports.logout = async (req, res) => {
   try {
-    // Update user status before destroying session
     if (req.session.userId) {
       const user = await User.findById(req.session.userId);
       if (user) {
         user.isActive = false;
         user.lastSeen = new Date();
         
-        // Find the last login entry without logout time and update it
         const lastLogin = user.loginHistory
           .filter(entry => !entry.logoutTime)
           .sort((a, b) => b.timestamp - a.timestamp)[0];
