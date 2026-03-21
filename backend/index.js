@@ -6,7 +6,6 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 
-// Import routes
 const authRoutes = require('./routes/authRoutes');
 const pdfRoutes = require('./routes/pdfRoutes');
 const chatRoutes = require('./routes/chatRoutes');
@@ -18,7 +17,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const FRONTEND_URL = 'https://opsmindflow.vercel.app';
 
-// MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('✅ MongoDB connected'))
   .catch(err => console.error('❌ MongoDB error:', err));
@@ -27,19 +25,14 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// 🔥 SIMPLE CORS MIDDLEWARE (THIS IS ALL YOU NEED)
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', FRONTEND_URL);
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Session-ID, X-User-ID');
-  
-  // Handle preflight requests immediately
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
+// ✅ PROPER CORS SETUP
+const corsOptions = {
+  origin: FRONTEND_URL,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'X-Session-ID', 'X-User-ID']
+};
+app.use(cors(corsOptions));
 
 // ✅ Session configuration
 app.use(session({
@@ -56,7 +49,6 @@ app.use(session({
   }
 }));
 
-// 🆕 SESSION DEBUGGING MIDDLEWARE
 app.use((req, res, next) => {
   console.log('\n' + '='.repeat(50));
   console.log('🍪 SESSION DEBUG at:', new Date().toISOString());
@@ -72,22 +64,18 @@ app.use((req, res, next) => {
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ✅ API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/pdf', pdfRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Health check
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-// Error handling middleware
 app.use((err, req, res, next) => {
   console.error('❌ Error:', err.stack);
   res.status(500).json({ error: err.message || 'Something went wrong' });
 });
 
-// Start server
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`🔗 Frontend URL: ${FRONTEND_URL}`);
