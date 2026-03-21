@@ -16,63 +16,60 @@ const api = axios.create({
 // Force withCredentials for ALL requests
 api.defaults.withCredentials = true;
 
-// 🔥 CRITICAL FIX: Store session ID in localStorage and send as header
+// 🔥 INTERCEPTOR FOR ALL REQUESTS
 api.interceptors.request.use(request => {
-  // Get session ID from localStorage if exists
+  // Get session data from localStorage
   const sessionId = localStorage.getItem('sessionId');
+  const userId = localStorage.getItem('userId');
+  
+  console.log('🔍 INTERCEPTOR RUNNING for:', request.url);
+  console.log('📦 localStorage sessionId:', sessionId ? sessionId.substring(0, 10) + '...' : 'NOT FOUND');
+  console.log('📦 localStorage userId:', userId);
+  
   if (sessionId) {
     request.headers['X-Session-ID'] = sessionId;
-    console.log('🔑 Adding session header:', sessionId.substring(0, 10) + '...');
+    console.log('✅ Added X-Session-ID header');
+  } else {
+    console.log('⚠️ No sessionId in localStorage');
   }
   
-  // Also get userId if needed
-  const userId = localStorage.getItem('userId');
   if (userId) {
     request.headers['X-User-ID'] = userId;
+    console.log('✅ Added X-User-ID header');
   }
   
-  console.log('🚀 Request:', {
-    url: request.url,
-    method: request.method,
-    withCredentials: request.withCredentials,
-    hasSessionHeader: !!sessionId,
-    cookies: document.cookie || 'No cookies'
-  });
+  console.log('🚀 Final Headers:', Object.keys(request.headers).filter(k => k.includes('X-')));
+  
   return request;
 });
 
-// 🔥 Store session ID from login response
+// 🔥 Response interceptor
 api.interceptors.response.use(
   response => {
-    // Check if this is a login response
+    console.log('✅ Response:', response.status, response.config.url);
+    
+    // Store session on login
     if (response.config.url.includes('/auth/login') && response.data?.user?._id) {
-      // Generate a simple session token (combination of userId + timestamp)
       const userId = response.data.user._id;
       const timestamp = Date.now();
-      const sessionToken = btoa(userId + ':' + timestamp); // base64 encode
+      const sessionToken = btoa(userId + ':' + timestamp);
       
-      // Store in localStorage
       localStorage.setItem('sessionId', sessionToken);
       localStorage.setItem('userId', userId);
       localStorage.setItem('userRole', response.data.user.role);
       
-      console.log('✅ Session stored in localStorage for user:', userId);
+      console.log('✅ Login - Session stored');
       console.log('🔑 Session token:', sessionToken.substring(0, 15) + '...');
     }
     
-    console.log('✅ Response:', response.status, response.config.url);
     return response;
   },
   error => {
-    console.log('❌ Error:', {
-      status: error.response?.status,
-      url: error.config?.url,
-      message: error.message
-    });
+    console.error('❌ Error:', error.response?.status, error.config?.url);
+    console.error('❌ Error details:', error.message);
     
-    // If 401, clear session
     if (error.response?.status === 401) {
-      console.log('🚫 Clearing session due to 401');
+      console.log('🚫 401 - Clearing session');
       localStorage.removeItem('sessionId');
       localStorage.removeItem('userId');
       localStorage.removeItem('userRole');
@@ -81,24 +78,5 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
-// Helper function to check if user is logged in
-export const isAuthenticated = () => {
-  return !!localStorage.getItem('sessionId');
-};
-
-// Helper function to get current user ID
-export const getCurrentUserId = () => {
-  return localStorage.getItem('userId');
-};
-
-// Helper function to logout
-export const logout = () => {
-  localStorage.removeItem('sessionId');
-  localStorage.removeItem('userId');
-  localStorage.removeItem('userRole');
-  // Optionally redirect to login
-  window.location.href = '/login';
-};
 
 export default api;
