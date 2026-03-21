@@ -24,13 +24,17 @@ export default function RegisterPage() {
     setLoading(true);
     setError('');
     setMessage('');
+    
+    // Show "Sending..." message to user
+    setMessage('Sending OTP to your email...');
+    
     try {
-      // Call new backend endpoint to send OTP (does not create user yet)
-      await api.post('/auth/send-otp', { firstName, lastName, email });
-      setMessage('OTP sent to your email');
+      const response = await api.post('/auth/send-otp', { firstName, lastName, email });
+      setMessage('OTP sent to your email!');
       setStep(2);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to send OTP');
+      console.error('Send OTP error:', err);
+      setError(err.response?.data?.error || 'Failed to send OTP. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -44,14 +48,15 @@ export default function RegisterPage() {
     }
     setLoading(true);
     setError('');
-    setMessage('');
+    setMessage('Verifying OTP...');
+    
     try {
-      // Verify OTP (backend should return a temporary token)
       await api.post('/auth/verify-otp', { email, otp });
-      setMessage('OTP verified');
+      setMessage('OTP verified successfully!');
       setStep(3);
     } catch (err) {
-      setError(err.response?.data?.error || 'Invalid OTP');
+      console.error('Verify OTP error:', err);
+      setError(err.response?.data?.error || 'Invalid OTP. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -63,11 +68,15 @@ export default function RegisterPage() {
       setError('Please enter a password');
       return;
     }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
     setLoading(true);
     setError('');
-    setMessage('');
+    setMessage('Creating your account...');
+    
     try {
-      // Complete registration (backend should have stored temporary data)
       await api.post('/auth/complete-registration', {
         email,
         password,
@@ -76,7 +85,22 @@ export default function RegisterPage() {
       setMessage('Registration successful! Redirecting to login...');
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Registration failed');
+      console.error('Registration error:', err);
+      setError(err.response?.data?.error || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resendOtp = async () => {
+    setLoading(true);
+    setError('');
+    setMessage('Resending OTP...');
+    try {
+      await api.post('/auth/send-otp', { firstName, lastName, email });
+      setMessage('OTP resent successfully!');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to resend OTP');
     } finally {
       setLoading(false);
     }
@@ -89,7 +113,7 @@ export default function RegisterPage() {
         <h2 className="text-3xl font-bold text-center text-white mb-6">Create Account</h2>
 
         {error && (
-          <div className="bg-red-500/80 text-white p-3 rounded-lg mb-4">{error}</div>
+          <div className="bg-red-500/80 text-white p-3 rounded-lg mb-4 animate-pulse">{error}</div>
         )}
         {message && (
           <div className="bg-green-500/80 text-white p-3 rounded-lg mb-4">{message}</div>
@@ -107,6 +131,7 @@ export default function RegisterPage() {
                 className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white"
                 placeholder="John"
                 required
+                disabled={loading}
               />
             </div>
             <div>
@@ -118,6 +143,7 @@ export default function RegisterPage() {
                 className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white"
                 placeholder="Doe"
                 required
+                disabled={loading}
               />
             </div>
             <div>
@@ -129,14 +155,15 @@ export default function RegisterPage() {
                 className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white"
                 placeholder="john@example.com"
                 required
+                disabled={loading}
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-white text-blue-600 py-3 rounded-lg font-semibold hover:bg-gray-100 transition disabled:opacity-50"
+              className="w-full bg-white text-blue-600 py-3 rounded-lg font-semibold hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Sending...' : 'Send OTP'}
+              {loading ? 'Sending OTP...' : 'Send OTP'}
             </button>
           </form>
         )}
@@ -154,7 +181,10 @@ export default function RegisterPage() {
                 placeholder="123456"
                 maxLength={6}
                 required
+                disabled={loading}
+                autoFocus
               />
+              <p className="text-white/70 text-xs mt-1">Check your email for OTP</p>
             </div>
             <button
               type="submit"
@@ -163,13 +193,21 @@ export default function RegisterPage() {
             >
               {loading ? 'Verifying...' : 'Verify OTP'}
             </button>
-            <div className="text-center">
+            <div className="text-center space-x-4">
               <button
                 type="button"
                 onClick={() => setStep(1)}
                 className="text-white/80 hover:text-white text-sm underline"
               >
-                Change email or resend OTP
+                Change email
+              </button>
+              <button
+                type="button"
+                onClick={resendOtp}
+                disabled={loading}
+                className="text-white/80 hover:text-white text-sm underline"
+              >
+                Resend OTP
               </button>
             </div>
           </form>
@@ -185,8 +223,9 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white"
-                placeholder="••••••••"
+                placeholder="•••••••• (min 6 characters)"
                 required
+                disabled={loading}
               />
             </div>
             <div>
@@ -195,10 +234,11 @@ export default function RegisterPage() {
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-white"
+                disabled={loading}
               >
                 <option value="employee" className="text-gray-800">Employee</option>
-                
               </select>
+              <p className="text-white/70 text-xs mt-1">All new users are registered as employees</p>
             </div>
             <button
               type="submit"
