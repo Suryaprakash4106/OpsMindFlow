@@ -43,7 +43,7 @@ exports.register = async (req, res) => {
   }
 };
 
-// Step 1: Send OTP (new multi‑step flow) - WITH CONSOLE LOGGING
+// Step 1: Send OTP (new multi‑step flow) - WITH DETAILED EMAIL DEBUG
 exports.sendOtp = async (req, res) => {
   try {
     const { firstName, lastName, email } = req.body;
@@ -66,25 +66,36 @@ exports.sendOtp = async (req, res) => {
     user.tempData = { firstName, lastName, otp, otpExpires };
     await user.save();
 
-    // ✅ LOG OTP TO CONSOLE
-    console.log('\n' + '='.repeat(50));
+    // ✅ DETAILED EMAIL DEBUG
+    console.log('\n' + '='.repeat(60));
+    console.log('📧 EMAIL CONFIGURATION CHECK:');
+    console.log('📧 EMAIL_USER:', process.env.EMAIL_USER);
+    console.log('📧 EMAIL_PASS exists:', !!process.env.EMAIL_PASS);
+    console.log('📧 EMAIL_PASS length:', process.env.EMAIL_PASS?.length || 0);
+    console.log('='.repeat(60) + '\n');
+
     console.log('📧 OTP FOR REGISTRATION');
     console.log(`📧 Email: ${email}`);
     console.log(`🔑 OTP: ${otp}`);
-    console.log('='.repeat(50) + '\n');
+    console.log('='.repeat(60) + '\n');
 
-    // Try to send email (but don't fail if it doesn't work)
+    // Try to send email with detailed error handling
     try {
-      await transporter.sendMail({
+      const info = await transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: email,
         subject: 'Your OTP - OpsMindFlow',
         html: `<p>Your OTP is: <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
       });
-      console.log('✅ Email sent successfully');
+      console.log('✅ Email sent successfully!');
+      console.log('📧 Message ID:', info.messageId);
+      console.log('📧 Response:', info.response);
     } catch (emailError) {
-      console.error('❌ Email send error:', emailError.message);
-      console.log('⚠️ But OTP is available in logs above!');
+      console.error('❌ EMAIL SEND FAILED:');
+      console.error('❌ Error code:', emailError.code);
+      console.error('❌ Error command:', emailError.command);
+      console.error('❌ Error response:', emailError.response);
+      console.error('❌ Full error:', emailError);
     }
 
     res.json({ message: 'OTP sent successfully' });
