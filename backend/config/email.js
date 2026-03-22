@@ -1,27 +1,32 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,  // Changed from 465 to 587
-  secure: false,  // Changed from true to false (TLS)
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false  // Helps with Render network
-  },
-  connectionTimeout: 15000,  // 15 seconds timeout
-  greetingTimeout: 15000,
-});
+// Initialize Resend with your API key
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Function to send email using Resend
+const sendEmail = async (to, subject, html) => {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: 'onboarding@resend.dev', // Resend's free test sender
+      to: to,
+      subject: subject,
+      html: html,
+    });
+    
+    if (error) {
+      console.error('❌ Resend error:', error);
+      return false;
+    }
+    console.log('✅ Email sent successfully to:', to);
+    console.log('📧 Email ID:', data.id);
+    return true;
+  } catch (error) {
+    console.error('❌ Email send error:', error);
+    return false;
+  }
+};
 
 // Verify connection on startup
-transporter.verify(function(error, success) {
-  if (error) {
-    console.log('❌ Email server connection error:', error.message);
-  } else {
-    console.log('✅ Email server is ready to send messages');
-  }
-});
+console.log('📧 Resend email service ready');
 
-module.exports = transporter;
+module.exports = { sendEmail };
