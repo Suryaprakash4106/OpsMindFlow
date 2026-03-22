@@ -67,7 +67,6 @@ exports.sendOtp = async (req, res) => {
 
     console.log('\n📧 OTP for', email, ':', otp, '\n');
 
-    // Send email using Resend
     await sendEmail(
       email,
       'Your OTP - OpsMindFlow',
@@ -101,23 +100,29 @@ exports.verifyOtp = async (req, res) => {
   }
 };
 
-// Step 3: Complete registration
+// ✅ FIXED: Step 3 - Complete registration (direct user creation, no OTP needed)
 exports.completeRegistration = async (req, res) => {
   try {
-    const { email, password, role } = req.body;
-    const user = await User.findOne({ email });
-    if (!user || !user.tempData) {
-      return res.status(400).json({ error: 'No pending registration found' });
+    const { email, password, role, firstName, lastName } = req.body;
+
+    // Check if user already exists
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(400).json({ error: 'Email already registered' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    user.name = `${user.tempData.firstName} ${user.tempData.lastName}`;
-    user.password = hashedPassword;
-    user.role = role || 'employee';
-    user.isVerified = true;
-    user.tempData = undefined;
-    user.isActive = false;
+    // Create user directly (OTP already verified in frontend)
+    const user = new User({
+      name: `${firstName} ${lastName}`,
+      email,
+      password: hashedPassword,
+      role: role || 'employee',
+      isVerified: true,
+      isActive: false,
+    });
+
     await user.save();
 
     res.json({ message: 'Registration successful' });
