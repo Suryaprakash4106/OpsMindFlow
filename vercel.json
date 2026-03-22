@@ -18,10 +18,6 @@
       "dest": "https://opsmindflow.onrender.com/auth/$1"
     },
     {
-      "src": "/health",
-      "dest": "https://opsmindflow.onrender.com/health"
-    },
-    {
       "handle": "filesystem"
     },
     {
