@@ -1,9 +1,9 @@
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const { generateOTP, sanitizeUser } = require('../utils/helpers');
-const transporter = require('../config/email');
+const { sendEmail } = require('../config/email');
 
-// Register new user (original single‑step method – keep for compatibility)
+// Register new user
 exports.register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
@@ -29,12 +29,11 @@ exports.register = async (req, res) => {
 
     await user.save();
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'Verify Your OTP - OpsMindFlow',
-      html: `<p>Your OTP is: <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
-    });
+    await sendEmail(
+      email,
+      'Verify Your OTP - OpsMindFlow',
+      `<p>Your OTP is: <strong>${otp}</strong>. It expires in 10 minutes.</p>`
+    );
 
     res.status(201).json({ message: 'Registration successful. Please verify OTP.' });
   } catch (error) {
@@ -43,7 +42,7 @@ exports.register = async (req, res) => {
   }
 };
 
-// Step 1: Send OTP (new multi‑step flow) - WITH DETAILED EMAIL DEBUG
+// Step 1: Send OTP
 exports.sendOtp = async (req, res) => {
   try {
     const { firstName, lastName, email } = req.body;
@@ -66,37 +65,14 @@ exports.sendOtp = async (req, res) => {
     user.tempData = { firstName, lastName, otp, otpExpires };
     await user.save();
 
-    // ✅ DETAILED EMAIL DEBUG
-    console.log('\n' + '='.repeat(60));
-    console.log('📧 EMAIL CONFIGURATION CHECK:');
-    console.log('📧 EMAIL_USER:', process.env.EMAIL_USER);
-    console.log('📧 EMAIL_PASS exists:', !!process.env.EMAIL_PASS);
-    console.log('📧 EMAIL_PASS length:', process.env.EMAIL_PASS?.length || 0);
-    console.log('='.repeat(60) + '\n');
+    console.log('\n📧 OTP for', email, ':', otp, '\n');
 
-    console.log('📧 OTP FOR REGISTRATION');
-    console.log(`📧 Email: ${email}`);
-    console.log(`🔑 OTP: ${otp}`);
-    console.log('='.repeat(60) + '\n');
-
-    // Try to send email with detailed error handling
-    try {
-      const info = await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: 'Your OTP - OpsMindFlow',
-        html: `<p>Your OTP is: <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
-      });
-      console.log('✅ Email sent successfully!');
-      console.log('📧 Message ID:', info.messageId);
-      console.log('📧 Response:', info.response);
-    } catch (emailError) {
-      console.error('❌ EMAIL SEND FAILED:');
-      console.error('❌ Error code:', emailError.code);
-      console.error('❌ Error command:', emailError.command);
-      console.error('❌ Error response:', emailError.response);
-      console.error('❌ Full error:', emailError);
-    }
+    // Send email using Resend
+    await sendEmail(
+      email,
+      'Your OTP - OpsMindFlow',
+      `<p>Your OTP is: <strong>${otp}</strong>. It expires in 10 minutes.</p>`
+    );
 
     res.json({ message: 'OTP sent successfully' });
   } catch (error) {
@@ -125,7 +101,7 @@ exports.verifyOtp = async (req, res) => {
   }
 };
 
-// Step 3: Complete registration (set password and role)
+// Step 3: Complete registration
 exports.completeRegistration = async (req, res) => {
   try {
     const { email, password, role } = req.body;
@@ -151,7 +127,7 @@ exports.completeRegistration = async (req, res) => {
   }
 };
 
-// Login user with explicit session save
+// Login user
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -183,12 +159,11 @@ exports.login = async (req, res) => {
     
     req.session.save(async (err) => {
       if (err) {
-        console.error('❌ Session save error:', err);
+        console.error('Session save error:', err);
         return res.status(500).json({ error: 'Session error' });
       }
       
-      console.log('✅ Session saved for user:', user._id);
-      console.log('🍪 Session ID:', req.sessionID);
+      console.log('Session saved for user:', user._id);
       
       user.isActive = true;
       user.lastSeen = new Date();
@@ -198,7 +173,7 @@ exports.login = async (req, res) => {
         ip: req.ip || req.connection.remoteAddress,
         userAgent: req.headers['user-agent'],
       });
-      await user.save().catch(err => console.error('Login history error:', err));
+      await user.save();
       
       res.json({
         message: 'Login successful',
@@ -213,33 +188,7 @@ exports.login = async (req, res) => {
   }
 };
 
-// Verify OTP (original single‑step method)
-exports.verifyOtpOriginal = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ error: 'User not found' });
-    }
-
-    if (user.otp !== otp || user.otpExpires < Date.now()) {
-      return res.status(400).json({ error: 'Invalid or expired OTP' });
-    }
-
-    user.isVerified = true;
-    user.otp = undefined;
-    user.otpExpires = undefined;
-    await user.save();
-
-    res.json({ message: 'OTP verified successfully' });
-  } catch (error) {
-    console.error('OTP verification error:', error);
-    res.status(500).json({ error: 'Verification failed' });
-  }
-};
-
-// Resend OTP (original)
+// Resend OTP
 exports.resendOtp = async (req, res) => {
   try {
     const { email } = req.body;
@@ -254,12 +203,11 @@ exports.resendOtp = async (req, res) => {
     user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: 'New OTP - OpsMindFlow',
-      html: `<p>Your new OTP is: <strong>${otp}</strong>. It expires in 10 minutes.</p>`,
-    });
+    await sendEmail(
+      email,
+      'New OTP - OpsMindFlow',
+      `<p>Your new OTP is: <strong>${otp}</strong>. It expires in 10 minutes.</p>`
+    );
 
     res.json({ message: 'OTP resent successfully' });
   } catch (error) {
