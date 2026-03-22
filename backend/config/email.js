@@ -4,9 +4,8 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendEmail = async (to, subject, html) => {
   try {
-    // Use the email you used to sign up for Resend as the sender
     const { data, error } = await resend.emails.send({
-      from: '720822106056@hit.edu.in', // ✅ This email is verified with Resend
+      from: 'prakashkt2004@gmail.com', // ✅ Your Resend verified email
       to: to,
       subject: subject,
       html: html,
