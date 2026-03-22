@@ -79,15 +79,23 @@ export default function AdminDashboard() {
     setShowBlockConfirm(true);
   };
 
-  // Confirm block/unblock action
+  // ✅ FIXED: Confirm block/unblock action with stats refresh
   const confirmBlockAction = async () => {
     if (!selectedUserForBlock) return;
     
     setShowBlockConfirm(false);
     try {
       await api.patch(`/admin/users/${selectedUserForBlock.id}/${blockAction}`);
-      const { data } = await api.get('/admin/users');
-      setUsers(data);
+      
+      // ✅ Refresh ALL data after block/unblock
+      const [usersRes, loginStatsRes] = await Promise.all([
+        api.get('/admin/users'),
+        api.get('/admin/login-stats')
+      ]);
+      setUsers(usersRes.data);
+      setLoginStats(loginStatsRes.data.stats);
+      setTotals(loginStatsRes.data.totals);
+      
     } catch (err) {
       alert('Failed to update user status');
     } finally {
@@ -115,7 +123,6 @@ export default function AdminDashboard() {
     setModalError('');
     try {
       const { data } = await api.get(`/admin/users/${userId}`);
-      // Ensure loginHistory is an array
       if (!data.loginHistory) data.loginHistory = [];
       setSelectedUser(data);
     } catch (err) {
@@ -152,7 +159,6 @@ export default function AdminDashboard() {
   const getDeviceInfo = (userAgent) => {
     if (!userAgent) return 'Unknown';
     
-    // Browser detection
     let browser = 'Unknown';
     if (userAgent.includes('Chrome')) browser = 'Chrome';
     else if (userAgent.includes('Firefox')) browser = 'Firefox';
@@ -160,7 +166,6 @@ export default function AdminDashboard() {
     else if (userAgent.includes('Edge')) browser = 'Edge';
     else if (userAgent.includes('MSIE') || userAgent.includes('Trident')) browser = 'Internet Explorer';
     
-    // OS detection
     let os = 'Unknown';
     if (userAgent.includes('Windows')) os = 'Windows';
     else if (userAgent.includes('Mac')) os = 'macOS';
@@ -171,7 +176,6 @@ export default function AdminDashboard() {
     return `${browser} on ${os}`;
   };
 
-  // Helper to get status badge based on user data
   const getStatusBadge = (user) => {
     if (user.status === 'blocked') {
       return <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Blocked</span>;
@@ -284,7 +288,7 @@ export default function AdminDashboard() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Last Login</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
-                  </tr>
+                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {users.map(u => (
@@ -360,12 +364,8 @@ export default function AdminDashboard() {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Confirm Logout</h3>
               <p className="text-gray-600 dark:text-gray-300 mb-6">Are you sure you want to logout?</p>
               <div className="flex justify-end space-x-3">
-                <button onClick={() => setShowLogoutConfirm(false)} className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
-                  Cancel
-                </button>
-                <button onClick={handleLogout} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">
-                  Logout
-                </button>
+                <button onClick={() => setShowLogoutConfirm(false)} className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">Cancel</button>
+                <button onClick={handleLogout} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">Logout</button>
               </div>
             </div>
           </div>
@@ -407,7 +407,6 @@ export default function AdminDashboard() {
         {showUserModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto">
-              {/* Modal Header */}
               <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
                 <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
                   Activity - {selectedUser?.name}
@@ -417,7 +416,6 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
-              {/* Modal Content */}
               <div className="p-6">
                 {modalLoading ? (
                   <p className="text-center text-gray-600 dark:text-gray-400">Loading...</p>
@@ -425,7 +423,6 @@ export default function AdminDashboard() {
                   <p className="text-center text-red-600">{modalError}</p>
                 ) : selectedUser ? (
                   <>
-                    {/* User Info Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                       <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
                         <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">NAME</p>
@@ -445,7 +442,6 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* Login History Table */}
                     <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Login Activity</h3>
                     {!selectedUser.loginHistory || selectedUser.loginHistory.length === 0 ? (
                       <p className="text-gray-500 dark:text-gray-400">No login history available</p>
@@ -461,33 +457,31 @@ export default function AdminDashboard() {
                             </tr>
                           </thead>
                           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                            {selectedUser.loginHistory.map((entry, idx) => {
-                              return (
-                                <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                    {formatDateTime(entry.timestamp)}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                      <FiLogIn className="mr-1" size={12} />
-                                      Login
+                            {selectedUser.loginHistory.map((entry, idx) => (
+                              <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                  {formatDateTime(entry.timestamp)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                    <FiLogIn className="mr-1" size={12} />
+                                    Login
+                                  </span>
+                                  {entry.logoutTime && (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 ml-2">
+                                      <FiLogOut className="mr-1" size={12} />
+                                      Logout
                                     </span>
-                                    {entry.logoutTime && (
-                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 ml-2">
-                                        <FiLogOut className="mr-1" size={12} />
-                                        Logout
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                    {entry.ip || 'Unknown'}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                    {getDeviceInfo(entry.userAgent)}
-                                  </td>
-                                </tr>
-                              );
-                            })}
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                  {entry.ip || 'Unknown'}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                                  {getDeviceInfo(entry.userAgent)}
+                                </td>
+                              </tr>
+                            ))}
                           </tbody>
                         </table>
                       </div>
