@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import api, { restoreSession, getCurrentUser } from '../services/api';
+import api from '../services/api';
 
 const AuthContext = createContext();
 
@@ -11,30 +11,33 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const fetchUser = async () => {
-      setLoading(true);
-      
-      // ✅ First, check localStorage for saved session
-      const savedUser = getCurrentUser();
-      if (savedUser) {
-        setUser(savedUser);
-      }
-      
-      // ✅ Then verify with backend
       try {
-        const restoredUser = await restoreSession();
-        if (restoredUser) {
-          setUser(restoredUser);
-        } else if (savedUser) {
-          // If localStorage had user but backend doesn't, clear it
-          localStorage.removeItem('sessionId');
-          localStorage.removeItem('userId');
-          localStorage.removeItem('userRole');
-          localStorage.removeItem('userName');
-          setUser(null);
+        // ✅ Get stored session data from localStorage
+        const sessionId = localStorage.getItem('sessionId');
+        const userId = localStorage.getItem('userId');
+        
+        // If no session data, just set loading false
+        if (!sessionId || !userId) {
+          setLoading(false);
+          return;
         }
+        
+        // ✅ Call /auth/me with headers to verify session
+        const { data } = await api.get('/auth/me', {
+          headers: {
+            'X-Session-ID': sessionId,
+            'X-User-ID': userId
+          }
+        });
+        setUser(data);
       } catch (error) {
-        console.error('Session restore error:', error);
+        console.error('Fetch user error:', error);
         setUser(null);
+        // Clear invalid session data
+        localStorage.removeItem('sessionId');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('userName');
       } finally {
         setLoading(false);
       }
@@ -50,7 +53,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     await api.post('/auth/logout');
-    // ✅ Clear localStorage on logout
+    // Clear all session data on logout
     localStorage.removeItem('sessionId');
     localStorage.removeItem('userId');
     localStorage.removeItem('userRole');
