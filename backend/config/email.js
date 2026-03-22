@@ -5,7 +5,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const sendEmail = async (to, subject, html) => {
   try {
     const { data, error } = await resend.emails.send({
-      from: 'prakashkt2004@gmail.com', // ✅ Your Resend verified email
+      from: 'onboarding@resend.dev',   // ✅ Resend's official test domain (no verification needed)
       to: to,
       subject: subject,
       html: html,
