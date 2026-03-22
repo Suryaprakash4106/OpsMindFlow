@@ -1,0 +1,25 @@
+{
+  "builds": [
+    {
+      "src": "frontend/**",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "frontend/dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://opsmindflow.onrender.com/api/$1"
+    },
+    {
+      "src": "/auth/(.*)",
+      "dest": "https://opsmindflow.onrender.com/auth/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
