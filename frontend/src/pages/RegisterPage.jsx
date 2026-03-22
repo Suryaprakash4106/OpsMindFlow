@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import emailjs from '@emailjs/browser';
 
 export default function RegisterPage() {
   const [step, setStep] = useState(1); // 1: details, 2: otp, 3: password
@@ -8,6 +9,7 @@ export default function RegisterPage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
+  const [generatedOtp, setGeneratedOtp] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('employee');
   const [error, setError] = useState('');
@@ -15,53 +17,71 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  // EmailJS config from .env
+  const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+  const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+  const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
+  // Step 1: Send OTP via EmailJS (no backend)
   const handleSendOtp = async (e) => {
     e.preventDefault();
     if (!firstName || !lastName || !email) {
       setError('Please fill in all fields');
       return;
     }
+
+    // Generate 6-digit OTP
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtp(otpCode);
+
     setLoading(true);
     setError('');
-    setMessage('');
-    
-    // Show "Sending..." message to user
     setMessage('Sending OTP to your email...');
-    
+
     try {
-      const response = await api.post('/auth/send-otp', { firstName, lastName, email });
-      setMessage('OTP sent to your email!');
-      setStep(2);
+      // Send email using EmailJS
+      const result = await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        {
+          otp: otpCode,
+          name: firstName,
+          email: email,
+        },
+        EMAILJS_PUBLIC_KEY
+      );
+
+      if (result.status === 200) {
+        setMessage('OTP sent to your email!');
+        setStep(2);
+      } else {
+        throw new Error('Failed to send');
+      }
     } catch (err) {
-      console.error('Send OTP error:', err);
-      setError(err.response?.data?.error || 'Failed to send OTP. Please try again.');
+      console.error('Email error:', err);
+      setError('Failed to send OTP. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  // Step 2: Verify OTP (frontend only)
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     if (!otp) {
       setError('Please enter OTP');
       return;
     }
-    setLoading(true);
-    setError('');
-    setMessage('Verifying OTP...');
-    
-    try {
-      await api.post('/auth/verify-otp', { email, otp });
+
+    if (otp === generatedOtp) {
       setMessage('OTP verified successfully!');
       setStep(3);
-    } catch (err) {
-      console.error('Verify OTP error:', err);
-      setError(err.response?.data?.error || 'Invalid OTP. Please try again.');
-    } finally {
-      setLoading(false);
+    } else {
+      setError('Invalid OTP. Please try again.');
     }
   };
 
+  // Step 3: Complete registration - Save to backend database
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!password) {
@@ -72,15 +92,19 @@ export default function RegisterPage() {
       setError('Password must be at least 6 characters');
       return;
     }
+
     setLoading(true);
     setError('');
     setMessage('Creating your account...');
-    
+
     try {
+      // This saves user to MongoDB
       await api.post('/auth/complete-registration', {
         email,
         password,
         role,
+        firstName,
+        lastName,
       });
       setMessage('Registration successful! Redirecting to login...');
       setTimeout(() => navigate('/login'), 2000);
@@ -93,14 +117,31 @@ export default function RegisterPage() {
   };
 
   const resendOtp = async () => {
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    setGeneratedOtp(otpCode);
     setLoading(true);
     setError('');
     setMessage('Resending OTP...');
+
     try {
-      await api.post('/auth/send-otp', { firstName, lastName, email });
-      setMessage('OTP resent successfully!');
+      const result = await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        {
+          otp: otpCode,
+          name: firstName,
+          email: email,
+        },
+        EMAILJS_PUBLIC_KEY
+      );
+
+      if (result.status === 200) {
+        setMessage('OTP resent successfully!');
+      } else {
+        throw new Error('Failed to resend');
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to resend OTP');
+      setError('Failed to resend OTP');
     } finally {
       setLoading(false);
     }
@@ -108,12 +149,11 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center p-4">
-      {/* Glass card */}
       <div className="bg-white/30 backdrop-blur-lg rounded-2xl shadow-xl p-8 w-full max-w-md border border-white/20">
         <h2 className="text-3xl font-bold text-center text-white mb-6">Create Account</h2>
 
         {error && (
-          <div className="bg-red-500/80 text-white p-3 rounded-lg mb-4 animate-pulse">{error}</div>
+          <div className="bg-red-500/80 text-white p-3 rounded-lg mb-4">{error}</div>
         )}
         {message && (
           <div className="bg-green-500/80 text-white p-3 rounded-lg mb-4">{message}</div>
@@ -161,7 +201,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-white text-blue-600 py-3 rounded-lg font-semibold hover:bg-gray-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-white text-blue-600 py-3 rounded-lg font-semibold hover:bg-gray-100 transition disabled:opacity-50"
             >
               {loading ? 'Sending OTP...' : 'Send OTP'}
             </button>
