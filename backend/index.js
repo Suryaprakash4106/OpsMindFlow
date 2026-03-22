@@ -25,11 +25,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// ✅ PROPER CORS SETUP
+// ✅ PROPER CORS SETUP - ADDED PATCH METHOD
 const corsOptions = {
   origin: FRONTEND_URL,
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // ✅ PATCH added
   allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization', 'X-Session-ID', 'X-User-ID']
 };
 app.use(cors(corsOptions));
