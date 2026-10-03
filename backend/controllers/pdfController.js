@@ -7,6 +7,7 @@ const fs = require('fs');
 
 // Upload PDF (admin only)
 exports.uploadPDF = async (req, res) => {
+  let doc;
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -19,12 +20,12 @@ exports.uploadPDF = async (req, res) => {
     const { text, pages } = await parsePDF(filePath);
 
     // Save document record
-    const doc = new Document({
+    doc = new Document({
       fileName,
       filePath,
       fileSize: req.file.size,
       pages,
-      uploadedBy: req.session.userId,
+      uploadedBy: req.user._id, // JWT: set by isAuthenticated middleware
       status: 'processing',
     });
     await doc.save();
@@ -32,22 +33,30 @@ exports.uploadPDF = async (req, res) => {
     // Chunk text
     const chunks = chunkText(text);
 
-    // Generate embeddings and save chunks
-    const chunkPromises = chunks.map(async (content, idx) => {
-      const embedding = await generateEmbedding(content);
-      return {
-        documentId: doc._id,
-        chunkIndex: idx,
-        content,
-        embedding,
-        metadata: {
-          page: Math.floor(idx / 5) + 1, // approximate page (assuming ~5 chunks per page)
-          source: fileName,
-        },
-      };
-    });
+    // Generate embeddings in small batches (avoids API rate limits)
+    const BATCH_SIZE = 5;
+    const chunkData = [];
+    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+      const batch = chunks.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map(async (content, j) => {
+          const idx = i + j;
+          const embedding = await generateEmbedding(content);
+          return {
+            documentId: doc._id,
+            chunkIndex: idx,
+            content,
+            embedding,
+            metadata: {
+              page: Math.floor(idx / 5) + 1, // approximate page
+              source: fileName,
+            },
+          };
+        })
+      );
+      chunkData.push(...results);
+    }
 
-    const chunkData = await Promise.all(chunkPromises);
     await Chunk.insertMany(chunkData);
 
     doc.status = 'completed';
@@ -56,6 +65,10 @@ exports.uploadPDF = async (req, res) => {
     res.json({ message: 'PDF uploaded and processed successfully', documentId: doc._id });
   } catch (error) {
     console.error('Upload PDF error:', error);
+    if (doc) {
+      doc.status = 'failed';
+      await doc.save().catch(() => {});
+    }
     res.status(500).json({ error: 'Failed to upload PDF' });
   }
 };
@@ -73,45 +86,31 @@ exports.listPDFs = async (req, res) => {
   }
 };
 
-// ✅ FIXED: Delete PDF with better error handling
+// Delete PDF
 exports.deletePDF = async (req, res) => {
   try {
-    console.log('🗑️ Delete request for ID:', req.params.id);
-    
     const doc = await Document.findById(req.params.id);
     if (!doc) {
-      console.log('❌ Document not found');
       return res.status(404).json({ error: 'Document not found' });
     }
-    
-    console.log('📄 Found document:', doc.fileName);
-    console.log('📁 File path:', doc.filePath);
-    
+
     // Delete file from disk if it exists
     try {
       if (fs.existsSync(doc.filePath)) {
         fs.unlinkSync(doc.filePath);
-        console.log('✅ File deleted from disk');
-      } else {
-        console.log('⚠️ File not found on disk:', doc.filePath);
       }
     } catch (fileError) {
-      console.error('❌ File deletion error:', fileError);
+      console.error('File deletion error:', fileError);
       // Continue with database deletion even if file delete fails
     }
-    
-    // Delete chunks
-    const chunkResult = await Chunk.deleteMany({ documentId: doc._id });
-    console.log(`✅ Deleted ${chunkResult.deletedCount} chunks`);
-    
-    // Delete document record
+
+    await Chunk.deleteMany({ documentId: doc._id });
     await doc.deleteOne();
-    console.log('✅ Document record deleted');
-    
+
     res.json({ message: 'PDF deleted successfully' });
   } catch (error) {
-    console.error('❌ Delete PDF error:', error);
-    res.status(500).json({ error: 'Failed to delete PDF: ' + error.message });
+    console.error('Delete PDF error:', error);
+    res.status(500).json({ error: 'Failed to delete PDF' });
   }
 };
 

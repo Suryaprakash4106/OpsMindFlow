@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 const { generateOTP, sanitizeUser } = require('../utils/helpers');
 const { sendEmail } = require('../config/email');
 
@@ -65,8 +66,6 @@ exports.sendOtp = async (req, res) => {
     user.tempData = { firstName, lastName, otp, otpExpires };
     await user.save();
 
-    console.log('\n📧 OTP for', email, ':', otp, '\n');
-
     await sendEmail(
       email,
       'Your OTP - OpsMindFlow',
@@ -100,12 +99,11 @@ exports.verifyOtp = async (req, res) => {
   }
 };
 
-// ✅ FIXED: Step 3 - Complete registration (direct user creation, no OTP needed)
+// Step 3: Complete registration (OTP already verified on frontend)
 exports.completeRegistration = async (req, res) => {
   try {
-    const { email, password, role, firstName, lastName } = req.body;
+    const { email, password, firstName, lastName } = req.body;
 
-    // Check if user already exists
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(400).json({ error: 'Email already registered' });
@@ -113,12 +111,12 @@ exports.completeRegistration = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user directly (OTP already verified in frontend)
+    // Role is always 'employee' (never trust role from the client)
     const user = new User({
       name: `${firstName} ${lastName}`,
       email,
       password: hashedPassword,
-      role: role || 'employee',
+      role: 'employee',
       isVerified: true,
       isActive: false,
     });
@@ -132,7 +130,7 @@ exports.completeRegistration = async (req, res) => {
   }
 };
 
-// Login user
+// Login user (JWT)
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -159,34 +157,28 @@ exports.login = async (req, res) => {
       return res.status(401).json({ error: 'Please verify your email first' });
     }
 
-    req.session.userId = user._id;
-    req.session.role = user.role;
-    
-    req.session.save(async (err) => {
-      if (err) {
-        console.error('Session save error:', err);
-        return res.status(500).json({ error: 'Session error' });
-      }
-      
-      console.log('Session saved for user:', user._id);
-      
-      user.isActive = true;
-      user.lastSeen = new Date();
-      user.lastLogin = new Date();
-      user.loginHistory.push({
-        timestamp: new Date(),
-        ip: req.ip || req.connection.remoteAddress,
-        userAgent: req.headers['user-agent'],
-      });
-      await user.save();
-      
-      res.json({
-        message: 'Login successful',
-        user: sanitizeUser(user),
-        role: user.role,
-      });
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    user.isActive = true;
+    user.lastSeen = new Date();
+    user.lastLogin = new Date();
+    user.loginHistory.push({
+      timestamp: new Date(),
+      ip: req.ip || req.connection.remoteAddress,
+      userAgent: req.headers['user-agent'],
     });
-    
+    await user.save();
+
+    res.json({
+      message: 'Login successful',
+      user: sanitizeUser(user),
+      role: user.role,
+      token,
+    });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Login failed' });
@@ -221,34 +213,23 @@ exports.resendOtp = async (req, res) => {
   }
 };
 
-// Logout
+// Logout (requires isAuthenticated, so req.user is set)
 exports.logout = async (req, res) => {
   try {
-    if (req.session.userId) {
-      const user = await User.findById(req.session.userId);
-      if (user) {
-        user.isActive = false;
-        user.lastSeen = new Date();
-        
-        const lastLogin = user.loginHistory
-          .filter(entry => !entry.logoutTime)
-          .sort((a, b) => b.timestamp - a.timestamp)[0];
-        
-        if (lastLogin) {
-          lastLogin.logoutTime = new Date();
-        }
-        
-        await user.save();
-      }
+    const user = req.user;
+    user.isActive = false;
+    user.lastSeen = new Date();
+
+    const lastLogin = user.loginHistory
+      .filter(entry => !entry.logoutTime)
+      .sort((a, b) => b.timestamp - a.timestamp)[0];
+
+    if (lastLogin) {
+      lastLogin.logoutTime = new Date();
     }
 
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ error: 'Logout failed' });
-      }
-      res.clearCookie('connect.sid');
-      res.json({ message: 'Logged out successfully' });
-    });
+    await user.save();
+    res.json({ message: 'Logged out successfully' });
   } catch (error) {
     console.error('Logout error:', error);
     res.status(500).json({ error: 'Logout failed' });
@@ -258,7 +239,7 @@ exports.logout = async (req, res) => {
 // Get current user
 exports.getCurrentUser = async (req, res) => {
   try {
-    const user = await User.findById(req.session.userId).select('-password -otp -otpExpires -tempData');
+    const user = await User.findById(req.user._id).select('-password -otp -otpExpires -tempData');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
