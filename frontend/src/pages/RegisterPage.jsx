@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import emailjs from '@emailjs/browser';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 
 export default function RegisterPage() {
   const [step, setStep] = useState(1); // 1: details, 2: otp, 3: password
@@ -11,6 +12,7 @@ export default function RegisterPage() {
   const [otp, setOtp] = useState('');
   const [generatedOtp, setGeneratedOtp] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState('employee');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -258,15 +260,25 @@ export default function RegisterPage() {
           <form onSubmit={handleRegister} className="space-y-4">
             <div>
               <label className="block text-white font-medium mb-2">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white"
-                placeholder="•••••••• (min 6 characters)"
-                required
-                disabled={loading}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-4 py-3 pr-12 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white"
+                  placeholder="•••••••• (min 6 characters)"
+                  required
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <FiEyeOff size={20} /> : <FiEye size={20} />}
+                </button>
+              </div>
             </div>
             <div>
               <label className="block text-white font-medium mb-2">Role</label>

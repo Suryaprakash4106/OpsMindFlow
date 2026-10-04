@@ -8,7 +8,8 @@ import EmployeeDashboard from './pages/EmployeeDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ChatPage from './pages/ChatPage';
 import UploadPage from './pages/UploadPage';
-import DocumentsPage from './pages/DocumentsPage';  // <-- import DocumentsPage
+import DocumentsPage from './pages/DocumentsPage';
+import SettingsPage from './pages/SettingsPage';
 
 function App() {
   return (
@@ -30,6 +31,16 @@ function App() {
       <Route path="/admin/upload" element={
         <ProtectedRoute allowedRoles={['admin']}>
           <UploadPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/settings" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <SettingsPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/settings" element={
+        <ProtectedRoute allowedRoles={['employee']}>
+          <SettingsPage />
         </ProtectedRoute>
       } />
       <Route path="/documents" element={

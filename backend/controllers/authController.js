@@ -249,3 +249,73 @@ exports.getCurrentUser = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch user' });
   }
 };
+// Update profile (name, email)
+exports.updateProfile = async (req, res) => {
+  try {
+    const { name, email } = req.body;
+
+    if (!name || !name.trim() || !email || !email.trim()) {
+      return res.status(400).json({ error: 'Name and email are required' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const newEmail = email.trim();
+    if (newEmail !== user.email) {
+      const existing = await User.findOne({ email: newEmail });
+      if (existing) {
+        return res.status(400).json({ error: 'Email already in use' });
+      }
+      user.email = newEmail;
+    }
+
+    user.name = name.trim();
+    await user.save();
+
+    const clean = sanitizeUser(user);
+    delete clean.tempData;
+    res.json({ message: 'Profile updated successfully', user: clean });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+};
+
+// Change password
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new password are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user || !user.password) {
+      return res.status(400).json({ error: 'Cannot change password for this account' });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+
+    if (await bcrypt.compare(newPassword, user.password)) {
+      return res.status(400).json({ error: 'New password must be different from current password' });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ error: 'Failed to update password' });
+  }
+};

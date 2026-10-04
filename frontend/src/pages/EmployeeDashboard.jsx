@@ -73,6 +73,12 @@ export default function EmployeeDashboard() {
                         <span className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</span>
                       </div>
                       <button
+                        onClick={() => { setShowUserMenu(false); navigate('/settings'); }}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        Settings
+                    </button>
+                      <button
                         onClick={() => setShowLogoutConfirm(true)}
                         className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
