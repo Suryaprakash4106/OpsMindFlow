@@ -5,6 +5,12 @@ const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
 
+const clearAuthStorage = () => {
+  ['token', 'sessionId', 'userId', 'userRole', 'userName'].forEach((k) =>
+    localStorage.removeItem(k)
+  );
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -12,32 +18,16 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        // ✅ Get stored session data from localStorage
-        const sessionId = localStorage.getItem('sessionId');
-        const userId = localStorage.getItem('userId');
-        
-        // If no session data, just set loading false
-        if (!sessionId || !userId) {
+        const token = localStorage.getItem('token');
+        if (!token) {
           setLoading(false);
           return;
         }
-        
-        // ✅ Call /auth/me with headers to verify session
-        const { data } = await api.get('/auth/me', {
-          headers: {
-            'X-Session-ID': sessionId,
-            'X-User-ID': userId
-          }
-        });
+        const { data } = await api.get('/auth/me');
         setUser(data);
       } catch (error) {
-        console.error('Fetch user error:', error);
         setUser(null);
-        // Clear invalid session data
-        localStorage.removeItem('sessionId');
-        localStorage.removeItem('userId');
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('userName');
+        clearAuthStorage();
       } finally {
         setLoading(false);
       }
@@ -52,12 +42,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    await api.post('/auth/logout');
-    // Clear all session data on logout
-    localStorage.removeItem('sessionId');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('userName');
+    try {
+      await api.post('/auth/logout');
+    } catch (e) {
+      // ignore, still clear local data
+    }
+    clearAuthStorage();
     setUser(null);
   };
 

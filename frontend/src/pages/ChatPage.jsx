@@ -180,8 +180,7 @@ export default function ChatPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Session-ID': localStorage.getItem('sessionId'),
-          'X-User-ID': localStorage.getItem('userId')
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({
           question: input,
