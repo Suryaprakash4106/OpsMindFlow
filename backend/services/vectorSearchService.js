@@ -10,26 +10,22 @@ const Chunk = require('../models/Chunk');
  */
 async function vectorSearch(embedding, limit = 5, documentId = null) {
   try {
-    const pipeline = [
-      {
-        $vectorSearch: {
-          index: 'vector_index', // must match the index name in Atlas
-          path: 'embedding',
-          queryVector: embedding,
-          numCandidates: 100,
-          limit: limit,
-        },
-      },
-    ];
+    const vectorStage = {
+      index: 'vector_index', // must match the index name in Atlas
+      path: 'embedding',
+      queryVector: embedding,
+      numCandidates: 100,
+      limit: limit,
+    };
 
-    // If a specific documentId is provided, filter chunks belonging to that PDF
+    // If a specific documentId is provided, filter INSIDE $vectorSearch
+    // (requires "documentId" as a filter field in the Atlas vector index)
     if (documentId) {
-      pipeline.push({
-        $match: { documentId: new mongoose.Types.ObjectId(documentId) }
-      });
+      vectorStage.filter = { documentId: new mongoose.Types.ObjectId(documentId) };
     }
 
-    pipeline.push(
+    const pipeline = [
+      { $vectorSearch: vectorStage },
       {
         $lookup: {
           from: 'documents',
@@ -47,8 +43,8 @@ async function vectorSearch(embedding, limit = 5, documentId = null) {
           'document.fileName': 1,
           score: { $meta: 'vectorSearchScore' },
         },
-      }
-    );
+      },
+    ];
 
     const results = await Chunk.aggregate(pipeline);
     return results;
